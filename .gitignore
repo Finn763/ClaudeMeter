@@ -1,0 +1,15 @@
+# build artifacts
+*.dll
+*.obj
+*.exe
+*.lib
+*.exp
+*.pdb
+build/
+# python
+__pycache__/
+*.pyc
+.venv/
+# local secrets / cache (never commit)
+*.credentials.json
+usage.ini
