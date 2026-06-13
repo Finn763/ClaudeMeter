@@ -1,4 +1,6 @@
 // Console test for ClaudeMeter pure logic (and, in Task 6, the built DLL).
+#include <windows.h>
+#include "PluginInterface.h"
 #include "UsageData.h"
 #include "UsageReader.h"
 #include <cstdio>
@@ -51,9 +53,34 @@ static void unit_tests() {
     CHECK(tipBad.find(L"不可用") != std::wstring::npos); // 不可用
 }
 
+static void dll_integration() {
+    HMODULE h = LoadLibraryW(L"ClaudeMeter.dll");
+    if (!h) { wprintf(L"FAIL: LoadLibrary ClaudeMeter.dll err=%lu\n", GetLastError()); ++g_failures; return; }
+    typedef ITMPlugin* (*GetInstanceFn)();
+    GetInstanceFn fn = reinterpret_cast<GetInstanceFn>(GetProcAddress(h, "TMPluginGetInstance"));
+    if (!fn) { wprintf(L"FAIL: no TMPluginGetInstance export\n"); ++g_failures; FreeLibrary(h); return; }
+    ITMPlugin* plugin = fn();
+    CHECK(plugin != nullptr);
+    CHECK(plugin->GetAPIVersion() == 7);
+    IPluginItem* item = plugin->GetItem(0);
+    CHECK(item != nullptr);
+    CHECK(plugin->GetItem(1) == nullptr);
+    plugin->DataRequired();
+    const wchar_t* val = item->GetItemValueText();
+    const wchar_t* tip = plugin->GetTooltipInfo();
+    CHECK(val != nullptr);
+    CHECK(tip != nullptr);
+    CHECK(item->GetItemLableText() != nullptr);
+    CHECK(item->GetItemValueSampleText() != nullptr);
+    wprintf(L"[dll] label='%s' value='%s'\n[dll] tooltip:\n%s\n",
+            item->GetItemLableText(), val, tip);
+    FreeLibrary(h);
+}
+
 int wmain() {
     unit_tests();
-    if (g_failures == 0) { wprintf(L"ALL UNIT TESTS PASSED\n"); return 0; }
+    dll_integration();
+    if (g_failures == 0) { wprintf(L"ALL TESTS PASSED\n"); return 0; }
     wprintf(L"%d FAILURE(S)\n", g_failures);
     return 1;
 }
