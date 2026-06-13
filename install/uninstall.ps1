@@ -6,7 +6,8 @@ if (Test-Path $settings) {
     $json = Get-Content $settings -Raw | ConvertFrom-Json
     if ($json.PSObject.Properties.Name -contains 'statusLine') {
         $json.PSObject.Properties.Remove('statusLine')
-        ($json | ConvertTo-Json -Depth 20) | Set-Content $settings -Encoding UTF8
+        $utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+        [System.IO.File]::WriteAllText($settings, ($json | ConvertTo-Json -Depth 20), $utf8NoBom)
     }
 }
 Remove-Item (Join-Path $env:LOCALAPPDATA "ClaudeMeter") -Recurse -Force -ErrorAction SilentlyContinue
