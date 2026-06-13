@@ -7,7 +7,10 @@
 
 // ASCII-only cache content -> widen 1:1
 inline std::wstring WidenAscii(const std::string& s) {
-    return std::wstring(s.begin(), s.end());
+    std::wstring w;
+    w.reserve(s.size());
+    for (char c : s) w.push_back(static_cast<wchar_t>(static_cast<unsigned char>(c)));
+    return w;
 }
 
 inline UsageData ParseUsageIni(const std::string& raw) {

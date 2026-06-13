@@ -5,6 +5,10 @@
 #include "UsageData.h"
 #include "UsageReader.h"
 
+// Threading: TrafficMonitor calls DataRequired() and the Get*() methods serially on
+// its single update thread, so the cached members need no locking. Returned const
+// wchar_t* point to members that stay valid until the next DataRequired().
+
 class CClaudeItem : public IPluginItem {
 public:
     const wchar_t* GetItemName() const override { return L"Claude Code 用量"; } // 用量
