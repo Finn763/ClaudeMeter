@@ -1,8 +1,11 @@
 // Console test for ClaudeMeter pure logic (and, in Task 6, the built DLL).
 #include <windows.h>
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "user32.lib")
 #include "PluginInterface.h"
 #include "UsageData.h"
 #include "UsageReader.h"
+#include "BarRender.h"
 #include <cstdio>
 #include <string>
 
@@ -17,12 +20,7 @@ static void unit_tests() {
     CHECK(FormatRemaining(100 + 3600 + 120, 100) == L"1h 2m");
     CHECK(FormatRemaining(100 + 86400LL * 6 + 3600 * 3, 100) == L"6d 3h");
 
-    // FormatValue
-    UsageData d; d.ok = true; d.five_hour_pct = 67; d.seven_day_pct = 10; d.sonnet_pct = 0;
-    CHECK(FormatValue(d, L"five_hour") == L"67%");
-    CHECK(FormatValue(d, L"seven_day") == L"10%");
     UsageData bad; bad.ok = false;
-    CHECK(FormatValue(bad, L"five_hour") == L"--");
 
     // ParseUsageIni
     std::string ini =
@@ -53,6 +51,85 @@ static void unit_tests() {
     CHECK(tipBad.find(L"不可用") != std::wstring::npos); // 不可用
 }
 
+static void draw_item_render_test(IPluginItem* item) {
+    const int W = 120, H = 40;
+    HDC screen = GetDC(NULL);
+    HDC mem = CreateCompatibleDC(screen);
+    BITMAPINFO bi; ZeroMemory(&bi, sizeof bi);
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = W;
+    bi.bmiHeader.biHeight = -H;            // top-down DIB
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    void* bits = nullptr;
+    HBITMAP dib = CreateDIBSection(mem, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    HBITMAP oldBmp = (HBITMAP)SelectObject(mem, dib);
+
+    const COLORREF SENTINEL = RGB(255, 0, 255); // magenta background
+    RECT full = { 0, 0, W, H };
+    HBRUSH bg = CreateSolidBrush(SENTINEL);
+    FillRect(mem, &full, bg);
+    DeleteObject(bg);
+
+    item->DrawItem((void*)mem, 0, 0, W, H, false);   // light mode
+    // Inside the top row's bar area (x=30 lands in the bar track at any fill level):
+    COLORREF px = GetPixel(mem, 30, 6);
+    CHECK(px != SENTINEL);                            // DrawItem painted the bar region
+
+    item->DrawItem((void*)mem, 0, 0, W, H, true);     // dark mode must not crash
+    COLORREF px2 = GetPixel(mem, 30, 6);
+    CHECK(px2 != SENTINEL);
+
+    SelectObject(mem, oldBmp);
+    DeleteObject(dib);
+    DeleteDC(mem);
+    ReleaseDC(NULL, screen);
+}
+
+static void bar_render_tests() {
+    // FillWidth: clamps, N/A -> 0, integer-floor
+    CHECK(FillWidth(0, 100) == 0);
+    CHECK(FillWidth(50, 100) == 50);
+    CHECK(FillWidth(100, 100) == 100);
+    CHECK(FillWidth(67, 60) == 40);     // 60*67/100 = 40
+    CHECK(FillWidth(-1, 100) == 0);     // N/A
+    CHECK(FillWidth(150, 100) == 100);  // clamp high
+
+    // BarColor thresholds: <50 green, 50..80 yellow, >80 red, <0 gray
+    CHECK(BarColor(49, false) == BarColor(0, false));    // green band
+    CHECK(BarColor(50, false) == BarColor(80, false));   // yellow band
+    CHECK(BarColor(81, false) == BarColor(100, false));  // red band
+    CHECK(BarColor(49, false) != BarColor(50, false));   // green != yellow
+    CHECK(BarColor(80, false) != BarColor(81, false));   // yellow != red
+    CHECK(BarColor(-1, false) != BarColor(0, false));    // N/A gray != green
+    CHECK(BarColor(67, true) != BarColor(67, false));    // dark differs from light
+
+    // RowAt: 3 rows in height 30, vgap 0 -> 10px rows, ascending non-overlapping y
+    BRect r0 = RowAt(0, 0, 100, 30, 0, 3, 0);
+    BRect r1 = RowAt(0, 0, 100, 30, 1, 3, 0);
+    BRect r2 = RowAt(0, 0, 100, 30, 2, 3, 0);
+    CHECK(r0.h == 10 && r1.h == 10 && r2.h == 10);
+    CHECK(r0.y == 0 && r1.y == 10 && r2.y == 20);
+    CHECK(r1.y >= r0.y + r0.h);
+
+    // SplitRow: [label | bar | number] partitions the row width exactly
+    RowParts p = SplitRow(BRect{0, 0, 120, 10}, 16, 30, 3);
+    CHECK(p.label.x == 0 && p.label.w == 16);
+    CHECK(p.bar.x == 16 + 3);
+    CHECK(p.bar.w == 120 - 16 - 30 - 2 * 3);      // 68
+    CHECK(p.number.x == p.bar.x + p.bar.w + 3);
+    CHECK(p.number.w == 30);
+    CHECK(p.number.x + p.number.w == 120);
+
+    // WindowLabel + number text
+    CHECK(std::wstring(WindowLabel(0)) == L"5h");
+    CHECK(std::wstring(WindowLabel(1)) == L"7d");
+    CHECK(std::wstring(WindowLabel(2)) == L"So");
+    CHECK(PctText(67) == L"67%");
+    CHECK(PctText(-1) == L"--");
+}
+
 static void dll_integration() {
     HMODULE h = LoadLibraryW(L"ClaudeMeter.dll");
     if (!h) { wprintf(L"FAIL: LoadLibrary ClaudeMeter.dll err=%lu\n", GetLastError()); ++g_failures; return; }
@@ -66,6 +143,9 @@ static void dll_integration() {
     CHECK(item != nullptr);
     CHECK(plugin->GetItem(1) == nullptr);
     plugin->DataRequired();
+    CHECK(item->IsCustomDraw() == true);
+    CHECK(item->GetItemWidth() > 0);
+    draw_item_render_test(item);
     const wchar_t* val = item->GetItemValueText();
     const wchar_t* tip = plugin->GetTooltipInfo();
     CHECK(val != nullptr);
@@ -79,6 +159,7 @@ static void dll_integration() {
 
 int wmain() {
     unit_tests();
+    bar_render_tests();
     dll_integration();
     if (g_failures == 0) { wprintf(L"ALL TESTS PASSED\n"); return 0; }
     wprintf(L"%d FAILURE(S)\n", g_failures);

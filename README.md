@@ -1,8 +1,9 @@
 # ClaudeMeter
 
 A [TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor) plugin that shows
-Claude Code remaining usage in the Windows status bar — `CC 67%` at a glance, full
-breakdown (5-hour / weekly / per-model) on hover.
+Claude Code remaining usage in the Windows status bar — three threshold-colored
+progress bars (5-hour / weekly / Sonnet), each with its used percentage, plus a full
+breakdown (incl. Opus + reset times) on hover.
 
 ## How it works
 
@@ -43,13 +44,12 @@ Then restart TrafficMonitor and enable **Claude Code 用量** under 右键 → �
 
 Uninstall: `powershell -ExecutionPolicy Bypass -File install\uninstall.ps1`
 
-## Configuration
+## Display
 
-`%LOCALAPPDATA%\ClaudeMeter\config.ini`:
-```ini
-[display]
-primary=five_hour   ; or seven_day
-```
+The taskbar item shows three stacked progress bars — 5-hour, weekly (all models), and
+Sonnet — each filled to its used percentage and colored by load (green < 50%, yellow
+50–80%, red > 80%). Hover for the full breakdown (incl. Opus and reset times). No
+configuration file is required.
 
 ## Data source & privacy
 
@@ -62,5 +62,5 @@ during active Claude Code sessions.
 ## Notes & limitations
 
 - Per-model lines (Sonnet/Opus) come only from the oauth endpoint.
-- If the token expires (no recent Claude Code use), the status bar shows `CC --`
-  until the next Claude Code activity refreshes the token.
+- If the token expires (no recent Claude Code use), the bars render empty (gray) with
+  `--` until the next Claude Code activity refreshes the token.
