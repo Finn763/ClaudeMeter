@@ -7,6 +7,10 @@ Claude Code remaining usage in the Windows status bar — three threshold-colore
 progress bars (5-hour / weekly / Sonnet), each with its used percentage, plus a full
 breakdown (incl. Opus + reset times) on hover.
 
+Since **v3** it also shows, to the right of the bars, how many Claude Code windows you
+have open and what they're doing: a green dot with the idle count (waiting for input)
+and a red dot with the working count (model generating, running a tool, or a `!` shell).
+
 ![ClaudeMeter taskbar progress bars](docs/images/taskbar-bars.png)
 
 ## How it works
@@ -44,7 +48,7 @@ powershell -ExecutionPolicy Bypass -File install\install.ps1
 powershell -ExecutionPolicy Bypass -File install\install.ps1 -WithStatusLine
 ```
 
-Then restart TrafficMonitor and enable **Claude Code 用量** under 右键 → 显示设置.
+Then restart TrafficMonitor and enable **Claude Code 用量与窗口** under 右键 → 显示设置.
 
 Uninstall: `powershell -ExecutionPolicy Bypass -File install\uninstall.ps1`
 
@@ -54,6 +58,13 @@ The taskbar item shows three stacked progress bars — 5-hour, weekly (all model
 Sonnet — each filled to its used percentage and colored by load (green < 50%, yellow
 50–80%, red > 80%). Hover for the full breakdown (incl. Opus and reset times). No
 configuration file is required.
+
+To the right of the bars, two indicators report your open Claude Code windows: a green
+dot + idle count (waiting for input) above, a red dot + working count (busy or running a
+`!` shell) below. The DLL reads `~/.claude/sessions/*.json` (honoring `CLAUDE_CONFIG_DIR`),
+counting only live windows whose owning process is still running; headless SDK sessions
+are excluded. If that directory can't be read, the indicators simply show `0`. Hover adds
+a `窗口: 工作 N · 闲置 N` line.
 
 ## Data source & privacy
 
