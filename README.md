@@ -62,5 +62,5 @@ during active Claude Code sessions.
 ## Notes & limitations
 
 - Per-model lines (Sonnet/Opus) come only from the oauth endpoint.
-- If the token expires (no recent Claude Code use), the status bar shows `CC --`
-  until the next Claude Code activity refreshes the token.
+- If the token expires (no recent Claude Code use), the bars render empty (gray) with
+  `--` until the next Claude Code activity refreshes the token.
