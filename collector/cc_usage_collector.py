@@ -17,6 +17,9 @@ import usage_cache
 
 DEFAULT_VERSION = '2.1.174'
 USAGE_URL = 'https://api.anthropic.com/api/oauth/usage'
+# Prevent a console window from flashing when the windowless scheduled task
+# (pythonw) spawns the console app `claude.exe --version` on Windows.
+_NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 _PRESERVE = (
     'five_hour_pct', 'five_hour_reset_epoch', 'seven_day_pct', 'seven_day_reset_epoch',
     'sonnet_pct', 'sonnet_reset_epoch', 'opus_pct', 'opus_reset_epoch', 'sub',
@@ -35,7 +38,8 @@ def read_credentials():
 
 def claude_version():
     try:
-        out = subprocess.run(['claude', '--version'], capture_output=True, text=True, timeout=15)
+        out = subprocess.run(['claude', '--version'], capture_output=True, text=True,
+                             timeout=15, creationflags=_NO_WINDOW)
         toks = (out.stdout or '').strip().split()
         v = toks[0] if toks else ''
         return v if v[:1].isdigit() else DEFAULT_VERSION
