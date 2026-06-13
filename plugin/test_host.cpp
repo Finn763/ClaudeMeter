@@ -1,5 +1,7 @@
 // Console test for ClaudeMeter pure logic (and, in Task 6, the built DLL).
 #include <windows.h>
+#pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "user32.lib")
 #include "PluginInterface.h"
 #include "UsageData.h"
 #include "UsageReader.h"
@@ -18,12 +20,7 @@ static void unit_tests() {
     CHECK(FormatRemaining(100 + 3600 + 120, 100) == L"1h 2m");
     CHECK(FormatRemaining(100 + 86400LL * 6 + 3600 * 3, 100) == L"6d 3h");
 
-    // FormatValue
-    UsageData d; d.ok = true; d.five_hour_pct = 67; d.seven_day_pct = 10; d.sonnet_pct = 0;
-    CHECK(FormatValue(d, L"five_hour") == L"67%");
-    CHECK(FormatValue(d, L"seven_day") == L"10%");
     UsageData bad; bad.ok = false;
-    CHECK(FormatValue(bad, L"five_hour") == L"--");
 
     // ParseUsageIni
     std::string ini =
@@ -52,6 +49,42 @@ static void unit_tests() {
     CHECK(tip.find(L"Sonnet") != std::wstring::npos);
     std::wstring tipBad = FormatTooltip(bad, 100);
     CHECK(tipBad.find(L"不可用") != std::wstring::npos); // 不可用
+}
+
+static void draw_item_render_test(IPluginItem* item) {
+    const int W = 120, H = 40;
+    HDC screen = GetDC(NULL);
+    HDC mem = CreateCompatibleDC(screen);
+    BITMAPINFO bi; ZeroMemory(&bi, sizeof bi);
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = W;
+    bi.bmiHeader.biHeight = -H;            // top-down DIB
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    void* bits = nullptr;
+    HBITMAP dib = CreateDIBSection(mem, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    HBITMAP oldBmp = (HBITMAP)SelectObject(mem, dib);
+
+    const COLORREF SENTINEL = RGB(255, 0, 255); // magenta background
+    RECT full = { 0, 0, W, H };
+    HBRUSH bg = CreateSolidBrush(SENTINEL);
+    FillRect(mem, &full, bg);
+    DeleteObject(bg);
+
+    item->DrawItem((void*)mem, 0, 0, W, H, false);   // light mode
+    // Inside the top row's bar area (x=30 lands in the bar track at any fill level):
+    COLORREF px = GetPixel(mem, 30, 6);
+    CHECK(px != SENTINEL);                            // DrawItem painted the bar region
+
+    item->DrawItem((void*)mem, 0, 0, W, H, true);     // dark mode must not crash
+    COLORREF px2 = GetPixel(mem, 30, 6);
+    CHECK(px2 != SENTINEL);
+
+    SelectObject(mem, oldBmp);
+    DeleteObject(dib);
+    DeleteDC(mem);
+    ReleaseDC(NULL, screen);
 }
 
 static void bar_render_tests() {
@@ -110,6 +143,9 @@ static void dll_integration() {
     CHECK(item != nullptr);
     CHECK(plugin->GetItem(1) == nullptr);
     plugin->DataRequired();
+    CHECK(item->IsCustomDraw() == true);
+    CHECK(item->GetItemWidth() > 0);
+    draw_item_render_test(item);
     const wchar_t* val = item->GetItemValueText();
     const wchar_t* tip = plugin->GetTooltipInfo();
     CHECK(val != nullptr);

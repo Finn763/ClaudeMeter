@@ -30,13 +30,6 @@ inline std::wstring PctText(int pct) {
     return buf;
 }
 
-// primary: L"five_hour" or L"seven_day"
-inline std::wstring FormatValue(const UsageData& d, const std::wstring& primary) {
-    if (!d.ok) return L"--";
-    int pct = (primary == L"seven_day") ? d.seven_day_pct : d.five_hour_pct;
-    return PctText(pct);
-}
-
 inline std::wstring FormatTooltip(const UsageData& d, long long now_epoch) {
     std::wstring t = L"Claude Code 用量"; // 用量
     if (!d.ok) {
