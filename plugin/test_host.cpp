@@ -3,6 +3,7 @@
 #include "PluginInterface.h"
 #include "UsageData.h"
 #include "UsageReader.h"
+#include "BarRender.h"
 #include <cstdio>
 #include <string>
 
@@ -53,6 +54,49 @@ static void unit_tests() {
     CHECK(tipBad.find(L"不可用") != std::wstring::npos); // 不可用
 }
 
+static void bar_render_tests() {
+    // FillWidth: clamps, N/A -> 0, integer-floor
+    CHECK(FillWidth(0, 100) == 0);
+    CHECK(FillWidth(50, 100) == 50);
+    CHECK(FillWidth(100, 100) == 100);
+    CHECK(FillWidth(67, 60) == 40);     // 60*67/100 = 40
+    CHECK(FillWidth(-1, 100) == 0);     // N/A
+    CHECK(FillWidth(150, 100) == 100);  // clamp high
+
+    // BarColor thresholds: <50 green, 50..80 yellow, >80 red, <0 gray
+    CHECK(BarColor(49, false) == BarColor(0, false));    // green band
+    CHECK(BarColor(50, false) == BarColor(80, false));   // yellow band
+    CHECK(BarColor(81, false) == BarColor(100, false));  // red band
+    CHECK(BarColor(49, false) != BarColor(50, false));   // green != yellow
+    CHECK(BarColor(80, false) != BarColor(81, false));   // yellow != red
+    CHECK(BarColor(-1, false) != BarColor(0, false));    // N/A gray != green
+    CHECK(BarColor(67, true) != BarColor(67, false));    // dark differs from light
+
+    // RowAt: 3 rows in height 30, vgap 0 -> 10px rows, ascending non-overlapping y
+    BRect r0 = RowAt(0, 0, 100, 30, 0, 3, 0);
+    BRect r1 = RowAt(0, 0, 100, 30, 1, 3, 0);
+    BRect r2 = RowAt(0, 0, 100, 30, 2, 3, 0);
+    CHECK(r0.h == 10 && r1.h == 10 && r2.h == 10);
+    CHECK(r0.y == 0 && r1.y == 10 && r2.y == 20);
+    CHECK(r1.y >= r0.y + r0.h);
+
+    // SplitRow: [label | bar | number] partitions the row width exactly
+    RowParts p = SplitRow(BRect{0, 0, 120, 10}, 16, 30, 3);
+    CHECK(p.label.x == 0 && p.label.w == 16);
+    CHECK(p.bar.x == 16 + 3);
+    CHECK(p.bar.w == 120 - 16 - 30 - 2 * 3);      // 68
+    CHECK(p.number.x == p.bar.x + p.bar.w + 3);
+    CHECK(p.number.w == 30);
+    CHECK(p.number.x + p.number.w == 120);
+
+    // WindowLabel + number text
+    CHECK(std::wstring(WindowLabel(0)) == L"5h");
+    CHECK(std::wstring(WindowLabel(1)) == L"7d");
+    CHECK(std::wstring(WindowLabel(2)) == L"So");
+    CHECK(PctText(67) == L"67%");
+    CHECK(PctText(-1) == L"--");
+}
+
 static void dll_integration() {
     HMODULE h = LoadLibraryW(L"ClaudeMeter.dll");
     if (!h) { wprintf(L"FAIL: LoadLibrary ClaudeMeter.dll err=%lu\n", GetLastError()); ++g_failures; return; }
@@ -79,6 +123,7 @@ static void dll_integration() {
 
 int wmain() {
     unit_tests();
+    bar_render_tests();
     dll_integration();
     if (g_failures == 0) { wprintf(L"ALL TESTS PASSED\n"); return 0; }
     wprintf(L"%d FAILURE(S)\n", g_failures);
