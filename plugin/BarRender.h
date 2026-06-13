@@ -55,6 +55,11 @@ inline unsigned long BarColor(int pct, bool dark) {
 inline unsigned long TrackColor(bool dark) { return dark ? Rgb(70, 70, 70) : Rgb(214, 214, 214); }
 inline unsigned long TextColor(bool dark)  { return dark ? Rgb(235, 235, 235) : Rgb(30, 30, 30); }
 
+// Window-status indicator dots: green = idle, red = working. Same hues as the
+// BarColor green (<50) and red (>80) bands, for visual consistency.
+inline unsigned long IdleDotColor(bool dark)    { return dark ? Rgb(60, 200, 90) : Rgb(40, 170, 70); }
+inline unsigned long WorkingDotColor(bool dark) { return dark ? Rgb(235, 95, 85) : Rgb(210, 60, 50); }
+
 inline const wchar_t* WindowLabel(int i) {
     switch (i) {
     case 0: return L"5h";

@@ -6,8 +6,10 @@
 #include "UsageData.h"
 #include "UsageReader.h"
 #include "BarRender.h"
+#include "SessionScan.h"
 #include <cstdio>
 #include <string>
+#include <vector>
 
 static int g_failures = 0;
 #define CHECK(cond) do { if(!(cond)){ wprintf(L"FAIL %hs:%d  %hs\n", __FILE__, __LINE__, #cond); ++g_failures; } } while(0)
@@ -52,7 +54,7 @@ static void unit_tests() {
 }
 
 static void draw_item_render_test(IPluginItem* item) {
-    const int W = 120, H = 40;
+    const int W = item->GetItemWidth() > 0 ? item->GetItemWidth() : 120, H = 40;
     HDC screen = GetDC(NULL);
     HDC mem = CreateCompatibleDC(screen);
     BITMAPINFO bi; ZeroMemory(&bi, sizeof bi);
@@ -76,6 +78,13 @@ static void draw_item_render_test(IPluginItem* item) {
     // Inside the top row's bar area (x=30 lands in the bar track at any fill level):
     COLORREF px = GetPixel(mem, 30, 6);
     CHECK(px != SENTINEL);                            // DrawItem painted the bar region
+
+    // Right-hand indicator zone (dots + counts) must have painted something too.
+    bool indicatorPainted = false;
+    for (int yy = 2; yy < H - 2 && !indicatorPainted; ++yy)
+        for (int xx = W - 24; xx < W - 1; ++xx)
+            if (GetPixel(mem, xx, yy) != SENTINEL) { indicatorPainted = true; break; }
+    CHECK(indicatorPainted);                          // window-status dots drawn
 
     item->DrawItem((void*)mem, 0, 0, W, H, true);     // dark mode must not crash
     COLORREF px2 = GetPixel(mem, 30, 6);
@@ -130,6 +139,76 @@ static void bar_render_tests() {
     CHECK(PctText(-1) == L"--");
 }
 
+static void session_scan_tests() {
+    // ExtractJsonString: "status" matches; "statusUpdatedAt" does not; absent -> false.
+    std::string busy = "{\"pid\":45492,\"kind\":\"interactive\",\"entrypoint\":\"cli\","
+                       "\"status\":\"busy\",\"updatedAt\":1,\"statusUpdatedAt\":2}";
+    std::string sdk  = "{\"pid\":32188,\"kind\":\"interactive\",\"entrypoint\":\"sdk-cli\"}";
+    std::string s;
+    CHECK(ExtractJsonString(busy, "status", s) == true);
+    CHECK(s == "busy");
+    CHECK(ExtractJsonString(sdk, "status", s) == false);          // headless SDK: no status
+    // statusUpdatedAt appearing before status must not derail the match:
+    std::string idle = "{\"statusUpdatedAt\":2,\"status\":\"idle\"}";
+    CHECK(ExtractJsonString(idle, "status", s) == true && s == "idle");
+    // "statusUpdatedAt" alone (no real status key) -> not found
+    std::string only = "{\"statusUpdatedAt\":2}";
+    CHECK(ExtractJsonString(only, "status", s) == false);
+
+    // ExtractJsonNumber: bare number, quoted number, exact-key, absent.
+    long long ll = -1;
+    std::string started = "{\"pid\":4128,\"startedAt\":1781338625797,\"status\":\"idle\"}";
+    CHECK(ExtractJsonNumber(started, "startedAt", ll) == true && ll == 1781338625797LL);
+    CHECK(ExtractJsonNumber(busy, "updatedAt", ll) == true && ll == 1); // not fooled by statusUpdatedAt
+    std::string quoted = "{\"procStart\":\"639169642249492710\"}";       // quoted FILETIME-tick number
+    CHECK(ExtractJsonNumber(quoted, "procStart", ll) == true && ll == 639169642249492710LL);
+    CHECK(ExtractJsonNumber(started, "missing", ll) == false);
+    CHECK(ExtractJsonNumber(sdk, "startedAt", ll) == false);            // absent in this sample
+
+    // CountSessions: idle vs working buckets, with dead/status-less skipped.
+    std::vector<SessionEntry> v = {
+        { true,  true,  "idle" },        // green
+        { true,  true,  "busy" },        // red
+        { true,  true,  "shell" },       // red
+        { true,  false, "" },            // headless SDK (no status) -> skip
+        { false, true,  "busy" },        // dead process -> skip
+        { true,  true,  "compacting" },  // unknown active state -> red
+    };
+    WindowCounts c = CountSessions(v);
+    CHECK(c.idle == 1);
+    CHECK(c.working == 3);
+    WindowCounts empty = CountSessions(std::vector<SessionEntry>{});
+    CHECK(empty.idle == 0 && empty.working == 0);
+
+    // StartTimeMatches: the PID-reuse guard. Genuine startup jitter passes; a
+    // process created minutes/hours later (PID reuse) is rejected; unknown -> open.
+    const long long t0 = 1781338625797LL;
+    CHECK(StartTimeMatches(t0, t0) == true);                  // exact
+    CHECK(StartTimeMatches(t0 - 848, t0) == true);            // ~0.8s real startup jitter
+    CHECK(StartTimeMatches(t0 + 119000, t0) == true);         // within 2 min
+    CHECK(StartTimeMatches(t0 + 121000, t0) == false);        // beyond 2 min -> reused
+    CHECK(StartTimeMatches(t0 + 86400000LL, t0) == false);    // a day later -> reused
+    CHECK(StartTimeMatches(999, 0) == true);                  // startedAt unknown -> fail open
+
+    // CountText
+    CHECK(CountText(0) == L"0");
+    CHECK(CountText(12) == L"12");
+    CHECK(CountText(-1) == L"0");
+
+    // FormatWindowStatusLine: contains the Chinese labels and both numbers.
+    std::wstring line = FormatWindowStatusLine(c);
+    CHECK(line.find(L"工作") != std::wstring::npos);  // working
+    CHECK(line.find(L"闲置") != std::wstring::npos);  // idle
+    CHECK(line.find(L"3") != std::wstring::npos);     // working count
+    CHECK(line.find(L"1") != std::wstring::npos);     // idle count
+}
+
+static void session_scan_live_smoke() {
+    WindowCounts c = ScanSessionsDefault();
+    wprintf(L"[live] sessions dir: %s\n", GetSessionsDir().c_str());
+    wprintf(L"[live] windows: working=%d idle=%d\n", c.working, c.idle);
+}
+
 static void dll_integration() {
     HMODULE h = LoadLibraryW(L"ClaudeMeter.dll");
     if (!h) { wprintf(L"FAIL: LoadLibrary ClaudeMeter.dll err=%lu\n", GetLastError()); ++g_failures; return; }
@@ -160,6 +239,8 @@ static void dll_integration() {
 int wmain() {
     unit_tests();
     bar_render_tests();
+    session_scan_tests();
+    session_scan_live_smoke();
     dll_integration();
     if (g_failures == 0) { wprintf(L"ALL TESTS PASSED\n"); return 0; }
     wprintf(L"%d FAILURE(S)\n", g_failures);

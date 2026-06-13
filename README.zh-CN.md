@@ -4,13 +4,16 @@
 
 一个 [TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor) 插件，在 Windows 任务栏/状态栏用**三条进度条**直观显示 Claude Code 的剩余用量：5 小时窗口、周·全部模型、Sonnet，每条带已用百分比，鼠标悬停可查看完整明细（含 Opus 与重置时间）。
 
-![ClaudeMeter 任务栏效果](docs/images/taskbar-bars.png)
+**v3 起**还会在进度条右侧显示当前打开了几个 Claude Code 窗口、各自在干嘛：绿灯 + 闲置窗口数（等你输入）在上，红灯 + 工作中窗口数（模型生成 / 跑工具 / 跑 `!` 命令）在下。
+
+![ClaudeMeter 任务栏效果：三条用量进度条 + 右侧绿灯闲置/红灯工作中窗口数](docs/images/taskbar-v3.png)
 
 ## 功能特性
 
 - **任务栏三进度条**：`5h` / `7d` / `So` 三个用量窗口，每条 = 小标签 + 进度条 + 已用百分比。
 - **阈值变色**：绿 `<50%` / 黄 `50–80%` / 红 `>80%`，一眼看出是否逼近上限；自适应明暗主题。
-- **悬停明细**：鼠标停在条目上，显示 5 小时、周、Sonnet、Opus 的百分比与重置倒计时、数据更新时间。
+- **窗口状态指示器（v3）**：进度条右侧两盏灯——绿=闲置窗口数、红=工作中窗口数。DLL 直接扫描 `~/.claude/sessions/*.json`（支持 `CLAUDE_CONFIG_DIR`），只统计进程仍存活的真实窗口，自动排除无头 SDK 会话；读不到则显示 `0`。
+- **悬停明细**：鼠标停在条目上，显示 5 小时、周、Sonnet、Opus 的百分比与重置倒计时、数据更新时间，外加 `窗口: 工作 N · 闲置 N`。
 - **完全静默后台**：用量采集每 3 分钟在后台无窗口运行，不弹任何终端 / 通知 / UAC。
 - **本地优先 + 混合数据源**：主用 Claude Code 的 `oauth` 用量接口；可选官方 `statusLine` 作合规兜底。
 - **零密钥外泄**：令牌只用于请求头，从不落盘 / 打印；DLL 本身不碰网络。
@@ -51,13 +54,15 @@ powershell -ExecutionPolicy Bypass -File install\install.ps1 -WithStatusLine
 
 安装脚本会自动：建缓存目录、首次取一次数据、注册每 3 分钟的计划任务（`pythonw` 无窗口）、把 DLL 拷到 TrafficMonitor 的 `plugins\` 目录。
 
-随后**重启 TrafficMonitor**，右键状态栏 → **显示设置**，勾选 **Claude Code 用量** 即可看到三条进度条。
+随后**重启 TrafficMonitor**，右键状态栏 → **显示设置**，勾选 **Claude Code 用量与窗口** 即可看到三条进度条 + 右侧窗口状态灯。
 
 卸载：`powershell -ExecutionPolicy Bypass -File install\uninstall.ps1`（删任务、撤 DLL、还原 statusLine、清缓存）。
 
 ## 显示说明
 
 任务栏项显示三条堆叠的进度条——5 小时、周（全部模型）、Sonnet——每条按已用百分比填充，并按负载着色（绿 `<50%`、黄 `50–80%`、红 `>80%`）。悬停查看完整明细（含 Opus 与重置时间）。无需任何配置文件。
+
+进度条右侧竖排两盏窗口状态灯：上为绿点 + 闲置窗口数（等你输入），下为红点 + 工作中窗口数（模型生成 / 跑工具 / 跑 `!` 命令）。计数来自 Claude Code 自己维护的 `~/.claude/sessions/<pid>.json`——DLL 每次刷新时扫描该目录，仅统计进程仍存活、且写有 `status` 字段的真实交互窗口（无头 SDK 会话因无 `status` 被自动排除）；目录读不到时两盏灯显示 `0`，不影响左侧用量条。
 
 ## 数据来源与隐私
 

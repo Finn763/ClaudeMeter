@@ -13,3 +13,6 @@ __pycache__/
 # local secrets / cache (never commit)
 *.credentials.json
 usage.ini
+
+# Serena MCP project cache
+.serena/
