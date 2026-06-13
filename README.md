@@ -11,7 +11,7 @@ Since **v3** it also shows, to the right of the bars, how many Claude Code windo
 have open and what they're doing: a green dot with the idle count (waiting for input)
 and a red dot with the working count (model generating, running a tool, or a `!` shell).
 
-![ClaudeMeter taskbar progress bars](docs/images/taskbar-bars.png)
+![ClaudeMeter taskbar: three usage bars plus green idle / red working window-count indicators](docs/images/taskbar-v3.png)
 
 ## How it works
 

@@ -6,7 +6,7 @@
 
 **v3 起**还会在进度条右侧显示当前打开了几个 Claude Code 窗口、各自在干嘛：绿灯 + 闲置窗口数（等你输入）在上，红灯 + 工作中窗口数（模型生成 / 跑工具 / 跑 `!` 命令）在下。
 
-![ClaudeMeter 任务栏效果](docs/images/taskbar-bars.png)
+![ClaudeMeter 任务栏效果：三条用量进度条 + 右侧绿灯闲置/红灯工作中窗口数](docs/images/taskbar-v3.png)
 
 ## 功能特性
 
