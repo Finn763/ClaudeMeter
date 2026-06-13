@@ -1,9 +1,13 @@
 # ClaudeMeter
 
+**English · [中文说明](README.zh-CN.md)**
+
 A [TrafficMonitor](https://github.com/zhongyang219/TrafficMonitor) plugin that shows
 Claude Code remaining usage in the Windows status bar — three threshold-colored
 progress bars (5-hour / weekly / Sonnet), each with its used percentage, plus a full
 breakdown (incl. Opus + reset times) on hover.
+
+![ClaudeMeter taskbar progress bars](docs/images/taskbar-bars.png)
 
 ## How it works
 
