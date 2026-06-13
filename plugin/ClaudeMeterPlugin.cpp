@@ -23,7 +23,8 @@ public:
         m_data = d;
         m_value = FormatValue(d, primary);
         int pct = (primary == L"seven_day") ? d.seven_day_pct : d.five_hour_pct;
-        m_graph = (d.ok && pct >= 0) ? static_cast<float>(pct) / 100.0f : 0.0f;
+        float g = (d.ok && pct >= 0) ? static_cast<float>(pct) / 100.0f : 0.0f;
+        m_graph = g > 1.0f ? 1.0f : (g < 0.0f ? 0.0f : g); // clamp to [0,1] per IPluginItem contract
     }
     std::wstring BuildTooltip() const {
         return FormatTooltip(m_data, static_cast<long long>(time(nullptr)));
