@@ -33,15 +33,12 @@ def read_credentials():
         return json.load(f)
 
 
-def read_token():
-    return read_credentials()['claudeAiOauth']['accessToken']
-
-
 def claude_version():
     try:
         out = subprocess.run(['claude', '--version'], capture_output=True, text=True, timeout=15)
-        v = (out.stdout or '').strip().split()
-        return v[0] if v else DEFAULT_VERSION
+        toks = (out.stdout or '').strip().split()
+        v = toks[0] if toks else ''
+        return v if v[:1].isdigit() else DEFAULT_VERSION
     except Exception:
         return DEFAULT_VERSION
 
@@ -60,7 +57,8 @@ def fetch_usage(token, version):
 
 def collect():
     try:
-        token = read_token()
+        creds = read_credentials()
+        token = creds['claudeAiOauth']['accessToken']
     except Exception:
         return {'ok': 0, 'error': 'no_token', 'source': 'oauth'}
     try:
@@ -70,11 +68,11 @@ def collect():
         return {'ok': 0, 'error': err, 'source': 'oauth'}
     except Exception:
         return {'ok': 0, 'error': 'network', 'source': 'oauth'}
-    fields = usage_cache.normalize_oauth(data)
     try:
-        fields['sub'] = read_credentials()['claudeAiOauth'].get('subscriptionType', '')
+        fields = usage_cache.normalize_oauth(data)
     except Exception:
-        pass
+        return {'ok': 0, 'error': 'bad_response', 'source': 'oauth'}
+    fields['sub'] = (creds.get('claudeAiOauth') or {}).get('subscriptionType', '')
     return fields
 
 

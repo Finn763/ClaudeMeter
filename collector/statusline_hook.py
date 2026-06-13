@@ -57,7 +57,10 @@ def main():
         handle(d)
     except Exception:
         pass
-    print(build_status_line(d))
+    try:
+        print(build_status_line(d))
+    except Exception:
+        print('Claude')
 
 
 if __name__ == '__main__':

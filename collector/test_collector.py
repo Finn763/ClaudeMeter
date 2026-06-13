@@ -13,16 +13,13 @@ SAMPLE = {
 
 class TestCollector(unittest.TestCase):
     def setUp(self):
-        self._rt = col.read_token
         self._fu = col.fetch_usage
         self._cv = col.claude_version
         self._cred = col.read_credentials
-        col.read_token = lambda: 'sk-ant-oat01-FAKE'
         col.claude_version = lambda: '2.1.174'
-        col.read_credentials = lambda: {'claudeAiOauth': {'subscriptionType': 'max'}}
+        col.read_credentials = lambda: {'claudeAiOauth': {'accessToken': 'sk-ant-oat01-FAKE', 'subscriptionType': 'max'}}
 
     def tearDown(self):
-        col.read_token = self._rt
         col.fetch_usage = self._fu
         col.claude_version = self._cv
         col.read_credentials = self._cred
@@ -62,10 +59,16 @@ class TestCollector(unittest.TestCase):
         self.assertEqual(f['error'], 'network')
 
     def test_collect_no_token(self):
-        col.read_token = lambda: (_ for _ in ()).throw(FileNotFoundError())
+        col.read_credentials = lambda: (_ for _ in ()).throw(FileNotFoundError())
         f = col.collect()
         self.assertEqual(f['ok'], 0)
         self.assertEqual(f['error'], 'no_token')
+
+    def test_collect_bad_response(self):
+        col.fetch_usage = lambda token, version: ['not', 'a', 'dict']
+        f = col.collect()
+        self.assertEqual(f['ok'], 0)
+        self.assertEqual(f['error'], 'bad_response')
 
 
 if __name__ == '__main__':

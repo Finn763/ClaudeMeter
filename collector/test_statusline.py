@@ -1,4 +1,4 @@
-import os, sys, json, io, tempfile, unittest
+import os, sys, tempfile, unittest
 sys.path.insert(0, os.path.dirname(__file__))
 import statusline_hook as sl
 import usage_cache as uc
@@ -41,6 +41,19 @@ class TestStatusline(unittest.TestCase):
             back = uc.read_cache(p)
             self.assertEqual(back['source'], 'oauth')   # unchanged
             self.assertEqual(back['five_hour_pct'], 3)
+
+    def test_handle_writes_when_oauth_stale(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, 'usage.ini')
+            uc.write_cache({'ok': 1, 'source': 'oauth', 'updated_epoch': 1,
+                            'five_hour_pct': 3, 'sonnet_pct': 5}, p)
+            payload = {'model': {'display_name': 'Opus'},
+                       'rate_limits': {'five_hour': {'used_percentage': 42, 'resets_at': 1700000000}}}
+            sl.handle(payload, cache_path=p)
+            back = uc.read_cache(p)
+            self.assertEqual(back['source'], 'statusline')
+            self.assertEqual(back['five_hour_pct'], 42)
+            self.assertEqual(back['sonnet_pct'], 5)  # per-model preserved
 
 
 if __name__ == '__main__':

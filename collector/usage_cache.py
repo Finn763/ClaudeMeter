@@ -9,6 +9,7 @@ import tempfile
 import configparser
 from datetime import datetime
 
+# NOTE: evaluated at import time; the scheduled-task process always sees LOCALAPPDATA.
 CACHE_DIR = os.path.join(os.environ.get('LOCALAPPDATA', os.path.expanduser('~')), 'ClaudeMeter')
 CACHE_PATH = os.path.join(CACHE_DIR, 'usage.ini')
 
